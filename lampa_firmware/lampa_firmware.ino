@@ -56,6 +56,7 @@ static void onSingleClick() {
 
 static void onDoubleClick() {
   ledNextScheme();
+  mqttPublishScheme();
 }
 
 static void onTripleClick() {

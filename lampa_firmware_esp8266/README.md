@@ -50,9 +50,27 @@ AP hotspotu pri nastavovaní WiFi. Zmena .local adresy sa prejaví až po rešta
   `admin` a PIN kódom z WiFi nastavenia)
 
 ## Domoticz / MQTT
-Rovnaký postup ako pri ESP32 verzii: Dummy hardware → Virtual Sensor → **Switch (On/Off)**,
-zisti jeho IDx a zadaj v sekcii Domoticz na `/settings`. Firmware odoberá `domoticz/out`, publikuje do `domoticz/in`
-vo formáte `{"idx":X,"nvalue":0/1}`.
+
+### 1. Zariadenie pre On/Off + RGB farbu
+Vo Domoticz: Setup -> Hardware -> tvoj Dummy hardware -> Create Virtual Sensors ->
+typ **Color Switch** (RGBW). Zisti jeho IDx (Setup -> Devices) a zadaj do polia
+"IDx svetla" na stranke /settings.
+
+### 2. Zariadenie pre vyber rezimu
+Vytvor dalsi virtualny senzor, typ **Selector Switch**. V Edit tohto zariadenia
+nastav "Level names" presne v tomto poradi (oddelene znakom |):
+
+    Pevna farba|Wakeup|Cyklus hore|Cyklus dole|Nahodne|Sviecka|RGB vzor|Duha
+
+Zisti jeho IDx a zadaj do polia "IDx pre vyber rezimu" na stranke /settings.
+
+### Ako to funguje
+Firmware odobera topic domoticz/out a rozlisuje spravy podla idx:
+- IDx Color Switch: cita Color objekt (r/g/b), Level (jas 0-100%) a nvalue (on/off)
+- IDx Selector Switch: cita nvalue v nasobkoch 10 (0=prva uroven, 10=druha, ...) a mapuje na rezim
+
+Pri zmene farby/jasu/rezimu z webu alebo tlacidla lampa publikuje spat na
+topic domoticz/in, takze aj Domoticz UI zostava synchronizovane.
 
 ## Rezimy svietenia
 Rovnaké ako v ESP32 verzii – 0 (pevná farba), 1 (wakeup), 2/3 (cyklus hore/dole),

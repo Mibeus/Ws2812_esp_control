@@ -12,6 +12,7 @@ struct Config {
   char mqttUser[32] = "";
   char mqttPass[32] = "";
   int domoticzIdx = 0;
+  int domoticzSchemeIdx = 0;  // Domoticz Selector Switch - vyber rezimu svietenia
 
   // Pristupovy PIN kod pre update firmveru (nastavuje sa spolu s WiFi)
   char otaPin[16] = "1234";

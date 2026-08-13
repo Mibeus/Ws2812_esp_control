@@ -45,14 +45,27 @@ AP hotspotu pri nastavovaní WiFi. Zmena .local adresy sa prejaví až po rešta
 - `/update` – nahratie nového `.bin` (chránené menom `admin` a PIN kódom z WiFi nastavenia)
 
 ## Domoticz / MQTT
-Vo Domoticz vytvor **Dummy hardware** → **Create Virtual Sensors** → typ **Switch (On/Off)**,
-zisti jeho **IDx** (Setup → Devices) a zadaj ho do sekcie Domoticz na stránke `/settings`.
-Firmware:
-- odoberá `domoticz/out`, reaguje na správy s daným `idx`
-- publikuje zmeny stavu do `domoticz/in` v tvare `{"idx":X,"nvalue":0/1}`
 
-Over si, že tvoj MQTT broker je v Domoticz nastavený na predvolené topicy `domoticz/in` / `domoticz/out`
-(Setup → Hardware → MQTT Client Gateway).
+### 1. Zariadenie pre On/Off + RGB farbu
+Vo Domoticz: Setup -> Hardware -> tvoj Dummy hardware -> Create Virtual Sensors ->
+typ **Color Switch** (RGBW). Zisti jeho IDx (Setup -> Devices) a zadaj do polia
+"IDx svetla" na stranke /settings.
+
+### 2. Zariadenie pre vyber rezimu
+Vytvor dalsi virtualny senzor, typ **Selector Switch**. V Edit tohto zariadenia
+nastav "Level names" presne v tomto poradi (oddelene znakom |):
+
+    Pevna farba|Wakeup|Cyklus hore|Cyklus dole|Nahodne|Sviecka|RGB vzor|Duha
+
+Zisti jeho IDx a zadaj do polia "IDx pre vyber rezimu" na stranke /settings.
+
+### Ako to funguje
+Firmware odobera topic domoticz/out a rozlisuje spravy podla idx:
+- IDx Color Switch: cita Color objekt (r/g/b), Level (jas 0-100%) a nvalue (on/off)
+- IDx Selector Switch: cita nvalue v nasobkoch 10 (0=prva uroven, 10=druha, ...) a mapuje na rezim
+
+Pri zmene farby/jasu/rezimu z webu alebo tlacidla lampa publikuje spat na
+topic domoticz/in, takze aj Domoticz UI zostava synchronizovane.
 
 ## Rezimy svietenia (čísla zhodné s Tasmota "Scheme")
 | Scheme | Popis |

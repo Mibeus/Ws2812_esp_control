@@ -201,6 +201,10 @@ static void handleSet() {
   if (server.hasArg("ledcount")) cfg.ledCount   = (uint16_t)server.arg("ledcount").toInt();
 
   configSave();
+
+  if (server.hasArg("bright") || server.hasArg("sat") || server.hasArg("hue")) mqttPublishColor();
+  if (server.hasArg("scheme")) mqttPublishScheme();
+
   server.send(200, "text/plain", "OK");
 }
 
@@ -227,7 +231,9 @@ static void handleSettingsPage() {
   s += "</div>";
 
   s += "<div class='panel'><label class='field' style='margin-top:0;color:var(--accent)'>Domoticz</label>";
-  s += "<label class='field'>IDx svetla (On/Off)</label><input id='idx' value='" + String(cfg.domoticzIdx) + "'>";
+  s += "<label class='field'>IDx svetla (On/Off + RGB farba, typ &quot;Color Switch&quot;)</label><input id='idx' value='" + String(cfg.domoticzIdx) + "'>";
+  s += "<label class='field'>IDx pre vyber rezimu (typ &quot;Selector Switch&quot;)</label><input id='schemeidx' value='" + String(cfg.domoticzSchemeIdx) + "'>";
+  s += "<p class='hint'>Uroven Selector Switch-a musi mat 8 pomenovani v poradi: Pevna farba, Wakeup, Cyklus hore, Cyklus dole, Nahodne, Sviecka, RGB vzor, Duha.</p>";
   s += "</div>";
 
   s += "<div class='panel'><label class='field' style='margin-top:0;color:var(--accent)'>Pomenovanie zariadenia</label>";
@@ -259,6 +265,7 @@ function saveAllAndRestart(){
     +'&user='+encodeURIComponent($('user').value)
     +'&pass='+encodeURIComponent($('pass').value)
     +'&idx='+encodeURIComponent($('idx').value)
+    +'&schemeidx='+encodeURIComponent($('schemeidx').value)
     +'&devname='+encodeURIComponent($('devname').value)
     +'&ledcount='+encodeURIComponent($('ledcount').value);
   fetch('/settingssave',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:body})
@@ -283,6 +290,7 @@ static void handleSettingsSave() {
   if (server.hasArg("user"))    strncpy(cfg.mqttUser, server.arg("user").c_str(), sizeof(cfg.mqttUser) - 1);
   if (server.hasArg("pass"))    strncpy(cfg.mqttPass, server.arg("pass").c_str(), sizeof(cfg.mqttPass) - 1);
   if (server.hasArg("idx"))     cfg.domoticzIdx = server.arg("idx").toInt();
+  if (server.hasArg("schemeidx")) cfg.domoticzSchemeIdx = server.arg("schemeidx").toInt();
   if (server.hasArg("devname")) strncpy(cfg.deviceName, server.arg("devname").c_str(), sizeof(cfg.deviceName) - 1);
   if (server.hasArg("ledcount")) cfg.ledCount = (uint16_t)server.arg("ledcount").toInt();
 

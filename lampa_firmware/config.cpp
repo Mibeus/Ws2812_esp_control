@@ -24,6 +24,7 @@ void configLoad() {
   s = prefs.getString("mqttPass", "");
   s.toCharArray(cfg.mqttPass, sizeof(cfg.mqttPass));
   cfg.domoticzIdx = prefs.getInt("idx", 0);
+  cfg.domoticzSchemeIdx = prefs.getInt("schemeIdx", 0);
 
   s = prefs.getString("otaPin", "1234");
   s.toCharArray(cfg.otaPin, sizeof(cfg.otaPin));
@@ -45,6 +46,7 @@ void configSave() {
   prefs.putString("mqttUser", cfg.mqttUser);
   prefs.putString("mqttPass", cfg.mqttPass);
   prefs.putInt("idx", cfg.domoticzIdx);
+  prefs.putInt("schemeIdx", cfg.domoticzSchemeIdx);
 
   prefs.putString("otaPin", cfg.otaPin);
 
