@@ -86,7 +86,9 @@ button.primary{width:100%;padding:12px;margin-top:16px;border:none;border-radius
 )CSS";
 
 static String pageOpen(const String &title) {
-  String s = "<!DOCTYPE html><html><head><meta charset='utf-8'>";
+  String s;
+  s.reserve(3200); // CSS blok ma cca 2.5kB - rezervujeme naraz, nech sa String neprealokuva po kuskoch
+  s += "<!DOCTYPE html><html><head><meta charset='utf-8'>";
   s += "<meta name='viewport' content='width=device-width, initial-scale=1'>";
   s += "<title>" + title + "</title><style>";
   s += FPSTR(PAGE_STYLE);
@@ -100,6 +102,7 @@ static const char PAGE_CLOSE[] = "</div></body></html>";
 // ---------------------------------------------------------------------
 static void handleRoot() {
   String s = pageOpen("Lampa // Ovladaci panel");
+  s.reserve(s.length() + 3500); // zvysok stranky (JS + ovladacie prvky) - jedna velka rezervacia
   s += "<h1>&#9670; " + String(cfg.deviceName) + "</h1><div class='subtitle'>Ovladaci panel</div>";
 
   s += "<div class='panel'>";
@@ -221,6 +224,7 @@ static void handleRestart() {
 // ---------------------------------------------------------------------
 static void handleSettingsPage() {
   String s = pageOpen("Nastavenia");
+  s.reserve(s.length() + 3800);
   s += "<h1>&#9881; Nastavenia</h1><div class='subtitle'>" + String(cfg.deviceName) + "</div>";
 
   s += "<div class='panel'><label class='field' style='margin-top:0;color:var(--accent)'>MQTT</label>";
