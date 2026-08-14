@@ -11,6 +11,7 @@ static void attachOtaPinParam() {
   static WiFiManagerParameter otaPinParam("otapin", "PIN kod pre update firmveru", otaPinBuf, sizeof(otaPinBuf) - 1);
   wm.addParameter(&otaPinParam);
   wm.setSaveParamsCallback([]() {
+    // hodnota sa do otaPinBuf zapise automaticky WiFiManagerom pri ulozeni portalu
     strncpy(cfg.otaPin, otaPinBuf, sizeof(cfg.otaPin) - 1);
     configSave();
   });
@@ -41,4 +42,33 @@ String wifiGetIp() {
 
 bool wifiIsConnected() {
   return WiFi.status() == WL_CONNECTED;
+}
+
+// Sleduje ci WiFi spojenie zije. Ak vypadne, skusi WiFi.reconnect(); ak sa nepodari
+// obnovit do 5 minut, radsej cely ESP restartuje - lepsie kratky vypadok nez
+// tiche "zamrznute" zariadenie, ktore treba fyzicky odpojit od napajania.
+static bool wifiWasConnected = true;
+static uint32_t wifiDownSince = 0;
+static uint32_t lastWifiCheck = 0;
+
+void wifiCheckHealth() {
+  if (millis() - lastWifiCheck < 5000) return; // kontrola raz za 5s
+  lastWifiCheck = millis();
+
+  if (wifiIsConnected()) {
+    wifiWasConnected = true;
+    wifiDownSince = 0;
+    return;
+  }
+
+  if (wifiWasConnected) {
+    wifiWasConnected = false;
+    wifiDownSince = millis();
+    Serial.println("[WiFi] spojenie vypadlo, skusam WiFi.reconnect()...");
+    WiFi.reconnect();
+  } else if (millis() - wifiDownSince > 5UL * 60UL * 1000UL) {
+    Serial.println("[WiFi] bez spojenia 5 minut, restartujem zariadenie");
+    delay(200);
+    ESP.restart();
+  }
 }

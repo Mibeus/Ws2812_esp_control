@@ -75,6 +75,23 @@ static void onHoldEnd() {
   configSave(); // ulozime novy jas az po pusteni, nie kazdych 60ms (setrime flash)
 }
 
+// Diagnostika + ochrana pred fragmentaciou pamate pri dlhodobej prevadzke.
+// Ak volna pamat kriticky klesne, radsej cisty restart nez neskorsi neurcity pad.
+static uint32_t lastHealthCheck = 0;
+static void checkSystemHealth() {
+  if (millis() - lastHealthCheck < 10000) return; // raz za 10s
+  lastHealthCheck = millis();
+
+  uint32_t freeHeap = ESP.getFreeHeap();
+  Serial.printf("[Health] volna pamat: %u B, beh: %lu s\n", freeHeap, millis() / 1000);
+
+  if (freeHeap < 8000) {
+    Serial.println("[Health] kriticky malo volnej pamate, restartujem zariadenie");
+    delay(200);
+    ESP.restart();
+  }
+}
+
 void setup() {
   Serial.begin(115200);
 
@@ -106,5 +123,7 @@ void loop() {
   ledUpdate();
   mqttLoop();
   webServerLoop();
+  wifiCheckHealth();
+  checkSystemHealth();
   MDNS.update();   // na ESP8266 treba mDNS periodicky obsluhovat (na rozdiel od ESP32)
 }
