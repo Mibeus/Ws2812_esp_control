@@ -75,8 +75,13 @@ static void onHoldEnd() {
 }
 
 // Diagnostika + ochrana pred fragmentaciou pamate pri dlhodobej prevadzke.
-// Ak volna pamat kriticky klesne, radsej cisty restart nez neskorsi neurcity pad.
+// Restartujeme len ak je pamat kriticky malo DLHODOBO (nie pri jednom ojedinelom
+// vykyve, napr. pocas startu kym sa naraz inicializuje WiFiManager/MQTT/webserver).
 static uint32_t lastHealthCheck = 0;
+static uint8_t lowHeapStreak = 0;
+static const uint32_t HEAP_CRITICAL = 6000;      // prah pre zapocitanie "streaku"
+static const uint8_t LOW_HEAP_STREAK_LIMIT = 6;  // 6x po sebe (60s v kuse) az potom restart
+
 static void checkSystemHealth() {
   if (millis() - lastHealthCheck < 10000) return; // raz za 10s
   lastHealthCheck = millis();
@@ -84,10 +89,16 @@ static void checkSystemHealth() {
   uint32_t freeHeap = ESP.getFreeHeap();
   Serial.printf("[Health] volna pamat: %u B, beh: %lu s\n", freeHeap, millis() / 1000);
 
-  if (freeHeap < 8000) {
-    Serial.println("[Health] kriticky malo volnej pamate, restartujem zariadenie");
-    delay(200);
-    ESP.restart();
+  if (freeHeap < HEAP_CRITICAL) {
+    lowHeapStreak++;
+    Serial.printf("[Health] pod kritickou hranicou (%u/%u kontrol po sebe)\n", lowHeapStreak, LOW_HEAP_STREAK_LIMIT);
+    if (lowHeapStreak >= LOW_HEAP_STREAK_LIMIT) {
+      Serial.println("[Health] dlhodobo kriticky malo pamate, restartujem zariadenie");
+      delay(200);
+      ESP.restart();
+    }
+  } else {
+    lowHeapStreak = 0; // ojedinely pokles bez pokracovania nie je dovod na restart
   }
 }
 

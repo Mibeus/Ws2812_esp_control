@@ -1,6 +1,7 @@
 #include "led_control.h"
 #include "config.h"
 #include <Adafruit_NeoPixel.h>
+#include <math.h>
 
 #define PIN_WS2812 4
 
@@ -14,7 +15,7 @@ const uint8_t SCHEME_ORDER_LEN = sizeof(SCHEME_ORDER) / sizeof(SCHEME_ORDER[0]);
 
 static uint32_t lastStep = 0;
 static uint16_t animPos = 0;
-static float wakeupProgress = 0.0f;
+static uint32_t wakeupStartMs = 0;
 static uint8_t candleLevel = 220;
 
 static uint32_t hsv(uint8_t h, uint8_t s, uint8_t v) {
@@ -32,7 +33,7 @@ void ledApplyPower() {
     strip->clear();
     strip->show();
   } else {
-    wakeupProgress = 0.0f; // ak zapinam do wakeup rezimu, zacne odznova
+    wakeupStartMs = 0; // ak zapinam do wakeup rezimu, zacne odznova
   }
 }
 
@@ -44,7 +45,7 @@ void ledNextScheme() {
   idx = (idx + 1) % SCHEME_ORDER_LEN;
   cfg.scheme = SCHEME_ORDER[idx];
   animPos = 0;
-  wakeupProgress = 0.0f;
+  wakeupStartMs = 0;
   configSave();
 }
 
@@ -61,9 +62,31 @@ static void renderSingle() {
 }
 
 static void renderWakeup() {
-  // cca 60s postupny nabeh na nastaveny jas, potom zostane ako pevna farba
-  if (wakeupProgress < 1.0f) wakeupProgress += 0.0003f;
-  uint8_t v = (uint8_t)(wakeupProgress * cfg.brightness);
+  // Plynuly "dychovy" cyklus: pomaly nabehne na plny jas, chvilu podrzi, potom
+  // rovnako plynulo zhasne a cyklus sa opakuje. Sinusovka namiesto linearneho
+  // rastu/poklesu, aby na vrchole/spodku nebol viditelny "lom" v rychlosti zmeny.
+  if (wakeupStartMs == 0) wakeupStartMs = millis(); // prvy vstup do rezimu
+
+  const uint32_t FADE_MS = 45000;  // 45s nahor, 45s nadol
+  const uint32_t HOLD_MS = 8000;   // 8s podrzania na plnom jase medzi nabehom a poklesom
+  const uint32_t CYCLE_MS = FADE_MS + HOLD_MS + FADE_MS;
+
+  uint32_t t = (millis() - wakeupStartMs) % CYCLE_MS;
+  float level;
+
+  if (t < FADE_MS) {
+    // faza nabehu: 0 -> 1, sinusovo (ease-in/ease-out)
+    float phase = (float)t / (float)FADE_MS; // 0..1
+    level = 0.5f - 0.5f * cosf(phase * (float)PI);
+  } else if (t < FADE_MS + HOLD_MS) {
+    level = 1.0f; // podrzanie na plnom jase
+  } else {
+    // faza poklesu: 1 -> 0, sinusovo
+    float phase = (float)(t - FADE_MS - HOLD_MS) / (float)FADE_MS; // 0..1
+    level = 0.5f + 0.5f * cosf(phase * (float)PI);
+  }
+
+  uint8_t v = (uint8_t)(level * cfg.brightness);
   uint32_t c = hsv(cfg.hue, cfg.saturation, v);
   for (uint16_t i = 0; i < strip->numPixels(); i++) strip->setPixelColor(i, c);
 }

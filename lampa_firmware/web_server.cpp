@@ -117,7 +117,7 @@ static void handleRoot() {
   s += "><span class='slider-toggle'></span></label></div>";
 
   s += "<label class='field'>Rezim svietenia</label><select id='scheme'>";
-  const char* names[] = {"0 - Pevna farba", "1 - Wakeup (postupny nabeh)", "2 - Cyklus farieb hore",
+  const char* names[] = {"0 - Pevna farba", "1 - Wakeup (dychovy cyklus)", "2 - Cyklus farieb hore",
                           "3 - Cyklus farieb dole", "4 - Nahodne farby", "6 - Sviecka (plamen)",
                           "7 - RGB vzor", "11 - Duha"};
   const uint8_t vals[] = {0, 1, 2, 3, 4, 6, 7, 11};

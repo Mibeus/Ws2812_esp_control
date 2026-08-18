@@ -4,7 +4,7 @@
 // Cisla schem su zvolene tak, aby sa zhodovali s Tasmota "Scheme" prikazom
 enum LightScheme : uint8_t {
   SCHEME_SINGLE      = 0,  // pevna farba
-  SCHEME_WAKEUP      = 1,  // postupny nabeh jasu
+  SCHEME_WAKEUP      = 1,  // dychovy cyklus - plynuly nabeh a nasledne dostmievanie jasu
   SCHEME_CYCLE_UP    = 2,  // plynule prechadzanie farieb hore
   SCHEME_CYCLE_DOWN  = 3,  // plynule prechadzanie farieb dole
   SCHEME_RANDOM      = 4,  // nahodne farby s prechodom
