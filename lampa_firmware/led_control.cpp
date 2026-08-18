@@ -17,6 +17,20 @@ static uint32_t lastStep = 0;
 static uint16_t animPos = 0;
 static uint32_t wakeupStartMs = 0;
 static uint8_t candleLevel = 220;
+static uint8_t lastWakeupLevel = 0; // posledny zobrazeny jas vo Wakeup rezime (0-255), pre plynuly nadvazujuci fade-out
+
+// stav plynuleho zhasinania (len pre Wakeup rezim, spusti sa pri vypnuti)
+static bool fadingOut = false;
+static uint32_t fadeOutStartMs = 0;
+static uint8_t fadeOutFromLevel = 0;
+
+static const uint32_t WAKEUP_FADE_MS = 4000; // dlzka plynuleho nabehu/zhasnutia
+
+static float easeInOut(float phase) { // phase 0..1 -> 0..1, sinusovy ease (bez lomu na koncoch)
+  if (phase < 0) phase = 0;
+  if (phase > 1) phase = 1;
+  return 0.5f - 0.5f * cosf(phase * (float)PI);
+}
 
 static uint32_t hsv(uint8_t h, uint8_t s, uint8_t v) {
   return strip->gamma32(strip->ColorHSV((uint16_t)h * 257, s, v));
@@ -30,10 +44,19 @@ void ledBegin() {
 
 void ledApplyPower() {
   if (!cfg.power) {
-    strip->clear();
-    strip->show();
+    if (cfg.scheme == SCHEME_WAKEUP && lastWakeupLevel > 0) {
+      // plynule zhasnutie namiesto okamziteho vypnutia - pokracuje presne odtial,
+      // kde bol jas v momente vypnutia (aj ked bol este uprostred nabehu)
+      fadingOut = true;
+      fadeOutStartMs = millis();
+      fadeOutFromLevel = lastWakeupLevel;
+    } else {
+      strip->clear();
+      strip->show();
+    }
   } else {
-    wakeupStartMs = 0; // ak zapinam do wakeup rezimu, zacne odznova
+    wakeupStartMs = 0; // zacne novy plynuly nabeh od nuly
+    fadingOut = false;
   }
 }
 
@@ -62,32 +85,15 @@ static void renderSingle() {
 }
 
 static void renderWakeup() {
-  // Plynuly "dychovy" cyklus: pomaly nabehne na plny jas, chvilu podrzi, potom
-  // rovnako plynulo zhasne a cyklus sa opakuje. Sinusovka namiesto linearneho
-  // rastu/poklesu, aby na vrchole/spodku nebol viditelny "lom" v rychlosti zmeny.
-  if (wakeupStartMs == 0) wakeupStartMs = millis(); // prvy vstup do rezimu
+  // Jednorazovy plynuly nabeh na nastaveny jas pri zapnuti, potom zostane staticky.
+  // Zhasnutie (plynuly fade-out) rieši ledApplyPower()/ledUpdate() nizsie, mimo tejto funkcie.
+  if (wakeupStartMs == 0) wakeupStartMs = millis(); // prvy vstup do rezimu / cerstve zapnutie
 
-  const uint32_t FADE_MS = 45000;  // 45s nahor, 45s nadol
-  const uint32_t HOLD_MS = 8000;   // 8s podrzania na plnom jase medzi nabehom a poklesom
-  const uint32_t CYCLE_MS = FADE_MS + HOLD_MS + FADE_MS;
+  uint32_t elapsed = millis() - wakeupStartMs;
+  float level = (elapsed >= WAKEUP_FADE_MS) ? 1.0f : easeInOut((float)elapsed / (float)WAKEUP_FADE_MS);
 
-  uint32_t t = (millis() - wakeupStartMs) % CYCLE_MS;
-  float level;
-
-  if (t < FADE_MS) {
-    // faza nabehu: 0 -> 1, sinusovo (ease-in/ease-out)
-    float phase = (float)t / (float)FADE_MS; // 0..1
-    level = 0.5f - 0.5f * cosf(phase * (float)PI);
-  } else if (t < FADE_MS + HOLD_MS) {
-    level = 1.0f; // podrzanie na plnom jase
-  } else {
-    // faza poklesu: 1 -> 0, sinusovo
-    float phase = (float)(t - FADE_MS - HOLD_MS) / (float)FADE_MS; // 0..1
-    level = 0.5f + 0.5f * cosf(phase * (float)PI);
-  }
-
-  uint8_t v = (uint8_t)(level * cfg.brightness);
-  uint32_t c = hsv(cfg.hue, cfg.saturation, v);
+  lastWakeupLevel = (uint8_t)(level * cfg.brightness);
+  uint32_t c = hsv(cfg.hue, cfg.saturation, lastWakeupLevel);
   for (uint16_t i = 0; i < strip->numPixels(); i++) strip->setPixelColor(i, c);
 }
 
@@ -156,6 +162,22 @@ static void renderRainbow() {
 }
 
 void ledUpdate() {
+  if (fadingOut) {
+    uint32_t elapsed = millis() - fadeOutStartMs;
+    if (elapsed >= WAKEUP_FADE_MS) {
+      fadingOut = false;
+      strip->clear();
+      strip->show();
+      return;
+    }
+    float level = 1.0f - easeInOut((float)elapsed / (float)WAKEUP_FADE_MS); // 1 -> 0
+    uint8_t v = (uint8_t)(level * fadeOutFromLevel);
+    uint32_t c = hsv(cfg.hue, cfg.saturation, v);
+    for (uint16_t i = 0; i < strip->numPixels(); i++) strip->setPixelColor(i, c);
+    strip->show();
+    return;
+  }
+
   if (!cfg.power) return;
 
   switch (cfg.scheme) {
