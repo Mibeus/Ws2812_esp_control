@@ -183,21 +183,24 @@ static int8_t argChannel() {
 // live = zmena v RAM bez zapisu do flash (pocas tahania posuvnika)
 static void handleLive() {
   int8_t ch = argChannel();
-  if (ch < 0) { server.send(400, "text/plain", "chybny kanal"); return; }
+  if (ch < 0) { Serial.println("[WEB] /live: chybny alebo chybajuci parameter 'ch'"); server.send(400, "text/plain", "chybny kanal"); return; }
   if (server.hasArg("bright")) cfg.brightness[ch] = (uint8_t)server.arg("bright").toInt();
   if (server.hasArg("speed"))  cfg.speed[ch] = (uint8_t)server.arg("speed").toInt();
+  Serial.printf("[WEB] /live kanal %d: bright=%u speed=%u\n", ch, cfg.brightness[ch], cfg.speed[ch]);
   server.send(200, "text/plain", "OK");
 }
 
 // set = aplikuje a ULOZI do flash + publikuje na MQTT
 static void handleSet() {
   int8_t ch = argChannel();
-  if (ch < 0) { server.send(400, "text/plain", "chybny kanal"); return; }
+  if (ch < 0) { Serial.println("[WEB] /set: chybny alebo chybajuci parameter 'ch'"); server.send(400, "text/plain", "chybny kanal"); return; }
 
   if (server.hasArg("power"))  { cfg.power[ch] = server.arg("power").toInt() != 0; pwmApplyPower(ch); }
   if (server.hasArg("scheme")) { cfg.scheme[ch] = (uint8_t)server.arg("scheme").toInt(); }
   if (server.hasArg("bright")) cfg.brightness[ch] = (uint8_t)server.arg("bright").toInt();
   if (server.hasArg("speed"))  cfg.speed[ch] = (uint8_t)server.arg("speed").toInt();
+
+  Serial.printf("[WEB] /set kanal %d: power=%d scheme=%u bright=%u speed=%u\n", ch, cfg.power[ch], cfg.scheme[ch], cfg.brightness[ch], cfg.speed[ch]);
 
   configSave();
   mqttPublishChannel(ch);

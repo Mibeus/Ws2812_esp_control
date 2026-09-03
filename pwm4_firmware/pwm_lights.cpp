@@ -28,13 +28,16 @@ static float easeInOut(float phase) {
 
 void pwmLightsBegin() {
   for (uint8_t i = 0; i < NUM_CHANNELS; i++) {
-    ledcAttach(CHANNEL_PINS[i], PWM_FREQ, PWM_RES);
-    ledcWrite(CHANNEL_PINS[i], 0);
+    bool ok = ledcAttach(CHANNEL_PINS[i], PWM_FREQ, PWM_RES);
+    Serial.printf("[PWM] kanal %u (GPIO%u): ledcAttach %s\n", i, CHANNEL_PINS[i], ok ? "OK" : "ZLYHALO");
+    bool wok = ledcWrite(CHANNEL_PINS[i], 0);
+    Serial.printf("[PWM] kanal %u: pociatocny ledcWrite(0) %s\n", i, wok ? "OK" : "ZLYHALO");
   }
 }
 
 void pwmApplyPower(uint8_t ch) {
   if (ch >= NUM_CHANNELS) return;
+  Serial.printf("[PWM] pwmApplyPower(kanal %u): power=%d scheme=%u bright=%u\n", ch, cfg.power[ch], cfg.scheme[ch], cfg.brightness[ch]);
 
   if (!cfg.power[ch]) {
     if (cfg.scheme[ch] == PWM_SCHEME_WAKEUP && lastLevel[ch] > 0) {
@@ -43,7 +46,8 @@ void pwmApplyPower(uint8_t ch) {
       fadeOutStartMs[ch] = millis();
       fadeOutFromLevel[ch] = lastLevel[ch];
     } else {
-      ledcWrite(CHANNEL_PINS[ch], 0);
+      bool ok = ledcWrite(CHANNEL_PINS[ch], 0);
+      Serial.printf("[PWM] kanal %u: vypnutie, ledcWrite(GPIO%u, 0) %s\n", ch, CHANNEL_PINS[ch], ok ? "OK" : "ZLYHALO");
       lastLevel[ch] = 0;
     }
   } else {
@@ -60,8 +64,14 @@ void pwmNextScheme(uint8_t ch) {
 }
 
 static void renderStatic(uint8_t ch) {
-  lastLevel[ch] = cfg.brightness[ch];
-  ledcWrite(CHANNEL_PINS[ch], lastLevel[ch]);
+  uint8_t newLevel = cfg.brightness[ch];
+  if (newLevel != lastLevel[ch]) {
+    bool ok = ledcWrite(CHANNEL_PINS[ch], newLevel);
+    Serial.printf("[PWM] kanal %u (GPIO%u): jas %u -> %u, ledcWrite %s\n", ch, CHANNEL_PINS[ch], lastLevel[ch], newLevel, ok ? "OK" : "ZLYHALO");
+  } else {
+    ledcWrite(CHANNEL_PINS[ch], newLevel);
+  }
+  lastLevel[ch] = newLevel;
 }
 
 static void renderWakeup(uint8_t ch) {
