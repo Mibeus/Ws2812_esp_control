@@ -9,12 +9,10 @@ nezavisle PWM svetla** (bez farby, len jas).
 - Kanal 2 -> GPIO1
 - Kanal 3 -> GPIO2
 - Kanal 4 -> GPIO3
-- Stavova LED -> GPIO21
 
-## Stavova LED (GPIO21)
-- **Bez WiFi**: kratky zablesk cca kazde 2s (vacsinu casu zhasnuta)
-- **WiFi OK, bez MQTT**: pravidelne blikanie 1:1 (500ms on / 500ms off)
-- **MQTT pripojene**: trvalo svieti
+## Diagnostika
+Kym nefunguje Serial monitor, stav kazdeho kanala (ledcAttach uspech, cfg hodnoty,
+naposledy zapisana PWM hodnota) je dostupny priamo na stranke `/debug`.
 
 ## Rezimy svietenia (kazdy kanal nezavisle)
 | Cislo | Nazov | Popis |

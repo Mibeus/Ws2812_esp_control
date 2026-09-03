@@ -17,6 +17,7 @@ static uint8_t  randCurLevel[NUM_CHANNELS]  = {0, 0, 0, 0};
 static uint8_t  randTargetLevel[NUM_CHANNELS] = {0, 0, 0, 0};
 static uint32_t lastStepMs[NUM_CHANNELS]    = {0, 0, 0, 0};
 static uint8_t  candleLevel[NUM_CHANNELS]   = {220, 220, 220, 220};
+static bool     attachOk[NUM_CHANNELS]      = {false, false, false, false};
 
 static const uint32_t FADE_MS = 4000; // dlzka plynuleho nabehu/zhasnutia (Wakeup)
 
@@ -28,11 +29,21 @@ static float easeInOut(float phase) {
 
 void pwmLightsBegin() {
   for (uint8_t i = 0; i < NUM_CHANNELS; i++) {
-    bool ok = ledcAttach(CHANNEL_PINS[i], PWM_FREQ, PWM_RES);
-    Serial.printf("[PWM] kanal %u (GPIO%u): ledcAttach %s\n", i, CHANNEL_PINS[i], ok ? "OK" : "ZLYHALO");
+    attachOk[i] = ledcAttach(CHANNEL_PINS[i], PWM_FREQ, PWM_RES);
+    Serial.printf("[PWM] kanal %u (GPIO%u): ledcAttach %s\n", i, CHANNEL_PINS[i], attachOk[i] ? "OK" : "ZLYHALO");
     bool wok = ledcWrite(CHANNEL_PINS[i], 0);
     Serial.printf("[PWM] kanal %u: pociatocny ledcWrite(0) %s\n", i, wok ? "OK" : "ZLYHALO");
   }
+}
+
+bool pwmChannelAttached(uint8_t ch) {
+  if (ch >= NUM_CHANNELS) return false;
+  return attachOk[ch];
+}
+
+uint8_t pwmLastDuty(uint8_t ch) {
+  if (ch >= NUM_CHANNELS) return 0;
+  return lastLevel[ch];
 }
 
 void pwmApplyPower(uint8_t ch) {

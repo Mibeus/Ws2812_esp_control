@@ -16,7 +16,6 @@
 
 #include "config.h"
 #include "pwm_lights.h"
-#include "status_led.h"
 #include "wifi_setup.h"
 #include "mqtt_client.h"
 #include "web_server.h"
@@ -73,8 +72,6 @@ void setup() {
   pwmLightsBegin();
   for (uint8_t ch = 0; ch < NUM_CHANNELS; ch++) pwmApplyPower(ch);
 
-  statusLedBegin();
-
   wifiSetupBegin();
 
   String mdnsHost = slugify(cfg.deviceName);
@@ -92,7 +89,6 @@ void setup() {
 
 void loop() {
   pwmLightsUpdate();
-  statusLedUpdate();
   mqttLoop();
   webServerLoop();
   wifiCheckHealth();

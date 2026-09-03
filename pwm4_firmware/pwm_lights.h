@@ -16,3 +16,7 @@ void pwmLightsBegin();
 void pwmLightsUpdate();                 // volat v loop() - nonblocking, riadi vsetky 4 kanaly nezavisle
 void pwmApplyPower(uint8_t channel);    // ihned zapne/zhasne dany kanal podla cfg.power[channel]
 void pwmNextScheme(uint8_t channel);    // posunie dany kanal na dalsi rezim
+
+// Diagnostika pre webovu /debug stranku (kym nefunguje Serial monitor)
+bool pwmChannelAttached(uint8_t channel);  // true ak ledcAttach() pri starte uspel
+uint8_t pwmLastDuty(uint8_t channel);      // posledna skutocne zapisana PWM hodnota (0-255)

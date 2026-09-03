@@ -130,6 +130,7 @@ static void handleRoot() {
   }
 
   s += "<a class='navlink' href='/settings'>&#9881; Nastavenia</a>";
+  s += "<a class='navlink' href='/debug'>&#128269; Diagnostika</a>";
   s += "<a class='navlink' href='/update'>&#8657; Aktualizacia firmveru</a>";
 
   s += R"JS(<script>
@@ -211,6 +212,35 @@ static void handleRestart() {
   server.send(200, "text/plain", "OK");
   delay(300);
   ESP.restart();
+}
+
+// ---------------------------------------------------------------------
+// "/debug" - diagnostika PWM kanalov priamo cez web (nahradza Serial monitor)
+// ---------------------------------------------------------------------
+static const uint8_t DEBUG_PINS[NUM_CHANNELS] = {0, 1, 2, 3};
+
+static void handleDebug() {
+  String s = pageOpen("Diagnostika");
+  s += "<h1>&#128269; Diagnostika</h1><div class='subtitle'>Stav PWM kanalov</div>";
+
+  for (uint8_t ch = 0; ch < NUM_CHANNELS; ch++) {
+    s += "<div class='panel'>";
+    s += "<h2 class='chTitle'>Kanal " + String(ch + 1) + " (GPIO" + String(DEBUG_PINS[ch]) + ")</h2>";
+    s += "<p class='hint'>ledcAttach pri starte: <b style='color:";
+    s += pwmChannelAttached(ch) ? "#33ff9d'>OK" : "#ff4d4d'>ZLYHALO";
+    s += "</b></p>";
+    s += "<p class='hint'>cfg.power = " + String(cfg.power[ch] ? "true" : "false") + "</p>";
+    s += "<p class='hint'>cfg.scheme = " + String(cfg.scheme[ch]) + "</p>";
+    s += "<p class='hint'>cfg.brightness = " + String(cfg.brightness[ch]) + " / 255</p>";
+    s += "<p class='hint'>naposledy zapisana PWM hodnota (lastLevel) = <b>" + String(pwmLastDuty(ch)) + "</b> / 255</p>";
+    s += "</div>";
+  }
+
+  s += "<p class='hint'>Voľna pamat: " + String(ESP.getFreeHeap()) + " B</p>";
+  s += "<p class='hint'>Beh od startu: " + String(millis() / 1000) + " s</p>";
+  s += "<a class='navlink' href='/'>&#8592; Spat</a>";
+  s += PAGE_CLOSE;
+  server.send(200, "text/html", s);
 }
 
 // ---------------------------------------------------------------------
@@ -349,6 +379,7 @@ void webServerBegin() {
   server.on("/live", HTTP_POST, handleLive);
   server.on("/set", HTTP_POST, handleSet);
   server.on("/restart", HTTP_POST, handleRestart);
+  server.on("/debug", HTTP_GET, handleDebug);
   server.on("/settings", HTTP_GET, handleSettingsPage);
   server.on("/settingssave", HTTP_POST, handleSettingsSave);
   server.on("/wifi-reset", HTTP_POST, handleWifiReset);
