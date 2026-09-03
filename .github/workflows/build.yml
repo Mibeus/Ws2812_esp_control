@@ -45,6 +45,12 @@ jobs:
       - name: Kompilacia PWM4 (ESP32-C3, 4 nezavisle kanaly)
         run: arduino-cli compile --fqbn esp32:esp32:esp32c3 --output-dir build/pwm4 pwm4_firmware
 
+      - name: Kompilacia Unified (ESP32-C3)
+        run: arduino-cli compile --fqbn esp32:esp32:esp32c3 --output-dir build/unified_esp32c3 unified_firmware_esp32c3
+
+      - name: Kompilacia Unified (ESP8266)
+        run: arduino-cli compile --fqbn esp8266:esp8266:d1_mini --output-dir build/unified_esp8266 unified_firmware_esp8266
+
       - name: Vyzbieranie .bin suborov
         run: |
           mkdir -p out
@@ -53,6 +59,8 @@ jobs:
           cp build/esp32c3/*.ino.bin out/lampa_firmware_esp32c3.bin
           cp build/esp8266/*.ino.bin out/lampa_firmware_esp8266.bin
           cp build/pwm4/*.ino.bin out/pwm4_firmware.bin
+          cp build/unified_esp32c3/*.ino.bin out/unified_firmware_esp32c3.bin
+          cp build/unified_esp8266/*.ino.bin out/unified_firmware_esp8266.bin
           ls -la out
 
       - name: Upload build artifacts
