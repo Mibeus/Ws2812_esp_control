@@ -42,6 +42,9 @@ jobs:
       - name: Kompilacia ESP8266
         run: arduino-cli compile --fqbn esp8266:esp8266:d1_mini --output-dir build/esp8266 lampa_firmware_esp8266
 
+      - name: Kompilacia PWM4 (ESP32-C3, 4 nezavisle kanaly)
+        run: arduino-cli compile --fqbn esp32:esp32:esp32c3 --output-dir build/pwm4 pwm4_firmware
+
       - name: Vyzbieranie .bin suborov
         run: |
           mkdir -p out
@@ -49,6 +52,7 @@ jobs:
           # ESP32 jadro popri nom generuje aj .bootloader.bin a .partitions.bin - tie nechavame bokom.
           cp build/esp32c3/*.ino.bin out/lampa_firmware_esp32c3.bin
           cp build/esp8266/*.ino.bin out/lampa_firmware_esp8266.bin
+          cp build/pwm4/*.ino.bin out/pwm4_firmware.bin
           ls -la out
 
       - name: Upload build artifacts
