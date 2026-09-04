@@ -7,6 +7,7 @@
 #include "wifi_setup.h"
 #include <ESP8266WebServer.h>
 #include <Updater.h>
+#include <ESP8266WiFi.h>
 
 static ESP8266WebServer server(80);
 static bool otaPinOk = false;
@@ -510,6 +511,9 @@ static void handleDebug() {
     }
     s += "</div>";
   }
+  int rssi = WiFi.RSSI();
+  String rssiQuality = (rssi > -60) ? "vyborny" : (rssi > -70) ? "dobry" : (rssi > -80) ? "slaby" : "velmi slaby";
+  s += "<p class='hint'>WiFi signal: <b>" + String(rssi) + " dBm</b> (" + rssiQuality + ")</p>";
   s += "<p class='hint'>Volna pamat: " + String(ESP.getFreeHeap()) + " B, beh: " + String(millis() / 1000) + " s</p>";
 
   s += "<div class='panel'><label class='field' style='margin-top:0;color:var(--accent)'>MQTT log</label>";
