@@ -112,6 +112,11 @@ static const char* FUNC_NAMES[FUNC_COUNT] = {
   "Nevyuzite", "Status LED", "PWM svetlo", "WS2812 pas", "On/Off"
 };
 
+// Odporucane/bezpecne GPIO na ESP32-C3 - vynechane strapping piny (9),
+// nativny USB (18,19) a UART0 (20,21, kvoli spolahlivemu Serial monitoru).
+static const uint8_t ALLOWED_GPIOS[] = {4, 5, 12, 13, 14}; // D2,D1,D6,D7,D5 - najbezpecnejsie na Wemos D1 mini style doskach
+static const uint8_t ALLOWED_GPIO_COUNT = sizeof(ALLOWED_GPIOS) / sizeof(ALLOWED_GPIOS[0]);
+
 // ---------------------------------------------------------------------
 // "/" - hlavna stranka, panel pre kazdy aktivny slot (podla funkcie)
 // ---------------------------------------------------------------------
@@ -339,9 +344,20 @@ static void handleRestart() {
 // ---------------------------------------------------------------------
 // "/settings"
 // ---------------------------------------------------------------------
+static void appendTableCss(String &s) {
+  s += "table.pintable{width:100%;border-collapse:collapse;font-size:12px;}";
+  s += "table.pintable th{text-align:left;color:var(--text-dim);font-weight:normal;text-transform:uppercase;letter-spacing:1px;font-size:10px;padding:0 4px 6px;}";
+  s += "table.pintable td{padding:4px 4px 10px;vertical-align:top;}";
+  s += "table.pintable select, table.pintable input{width:100%;padding:6px;font-size:12px;}";
+  s += "tr.ws2812extra td{padding-top:0;}";
+  s += "tr.ws2812extra label{font-size:10px;color:var(--text-dim);display:block;margin-bottom:2px;}";
+  s += "tr.ws2812extra input{margin-bottom:6px;}";
+}
+
 static void handleSettingsPage() {
   String s = pageOpen("Nastavenia");
   s.reserve(s.length() + 6500);
+  s += "<style>"; appendTableCss(s); s += "</style>";
   s += "<h1>&#9881; Nastavenia</h1><div class='subtitle'>" + String(cfg.deviceName) + "</div>";
 
   s += "<div class='panel'><label class='field' style='margin-top:0;color:var(--accent)'>MQTT</label>";
@@ -351,24 +367,37 @@ static void handleSettingsPage() {
   s += "<label class='field'>Heslo (nepovinne)</label><input type='password' id='pass' value='" + String(cfg.mqttPass) + "'>";
   s += "</div>";
 
+  s += "<div class='panel'><label class='field' style='margin-top:0;color:var(--accent)'>Piny</label>";
+  s += "<table class='pintable'><tr><th>Pin</th><th>Funkcia</th><th>Domoticz IDx</th></tr>";
+
   for (uint8_t ch = 0; ch < NUM_SLOTS; ch++) {
     SlotConfig &sl = cfg.slots[ch];
-    s += "<div class='panel'><label class='field' style='margin-top:0;color:var(--accent)'>Pin " + String(ch + 1) + "</label>";
+    s += "<tr><td><select id='gpio" + String(ch) + "'>";
+    bool gpioListed = false;
+    for (uint8_t p = 0; p < ALLOWED_GPIO_COUNT; p++) {
+      s += "<option value='" + String(ALLOWED_GPIOS[p]) + "'" + (sl.gpio == ALLOWED_GPIOS[p] ? " selected" : "") + ">GPIO" + String(ALLOWED_GPIOS[p]) + "</option>";
+      if (sl.gpio == ALLOWED_GPIOS[p]) gpioListed = true;
+    }
+    if (!gpioListed) { // ulozene GPIO uz nie je v odporucanom zozname - pridaj ho, nech sa nestrati
+      s += "<option value='" + String(sl.gpio) + "' selected>GPIO" + String(sl.gpio) + " (mimo zoznamu)</option>";
+    }
+    s += "</select></td>";
 
-    s += "<label class='field'>GPIO cislo</label><input type='number' min='0' max='48' id='gpio" + String(ch) + "' value='" + String(sl.gpio) + "'>";
-
-    s += "<label class='field'>Funkcia</label><select id='func" + String(ch) + "'>";
+    s += "<td><select id='func" + String(ch) + "' onchange='toggleWs2812Extra(" + String(ch) + ")'>";
     for (uint8_t f = 0; f < FUNC_COUNT; f++) {
       s += "<option value='" + String(f) + "'" + (sl.function == f ? " selected" : "") + ">" + FUNC_NAMES[f] + "</option>";
     }
-    s += "</select>";
+    s += "</select></td>";
 
-    s += "<label class='field'>Domoticz IDx (hlavne zariadenie)</label><input id='idx" + String(ch) + "' value='" + String(sl.domoticzIdx) + "'>";
-    s += "<label class='field'>Domoticz IDx pre vyber rezimu (volitelne, Selector Switch)</label><input id='sidx" + String(ch) + "' value='" + String(sl.domoticzSchemeIdx) + "'>";
-    s += "<label class='field'>Pocet LED (len pre WS2812)</label><input type='number' min='1' max='500' id='lc" + String(ch) + "' value='" + String(sl.ledCount) + "'>";
-    s += "<p class='hint'>Domoticz IDx a pocet LED sa pouziju len ak funkcia pinu sedi (Switch/Dimmer/Color Switch/WS2812).</p>";
-    s += "</div>";
+    s += "<td><input id='idx" + String(ch) + "' value='" + String(sl.domoticzIdx) + "'></td></tr>";
+
+    s += "<tr class='ws2812extra' id='wsrow" + String(ch) + "' style='display:" + (sl.function == FUNC_WS2812 ? "table-row" : "none") + "'>";
+    s += "<td colspan='3'><label>Pocet LED</label><input type='number' min='1' max='500' id='lc" + String(ch) + "' value='" + String(sl.ledCount) + "'>";
+    s += "<label>Domoticz IDx pre vyber rezimu (volitelne)</label><input id='sidx" + String(ch) + "' value='" + String(sl.domoticzSchemeIdx) + "'></td></tr>";
   }
+  s += "</table>";
+  s += "<p class='hint'>Vyber rezimu cez samostatne Domoticz IDx je dostupny len pre WS2812.</p>";
+  s += "</div>";
 
   s += "<div class='panel'><label class='field' style='margin-top:0;color:var(--accent)'>Pomenovanie zariadenia</label>";
   s += "<label class='field'>Nazov (nadpis, zaklad .local adresy)</label>";
@@ -387,6 +416,11 @@ static void handleSettingsPage() {
 
   s += R"JS(<script>
 const $ = id => document.getElementById(id);
+function toggleWs2812Extra(ch){
+  var row = $('wsrow'+ch);
+  var func = $('func'+ch).value;
+  row.style.display = (func == '3') ? 'table-row' : 'none';
+}
 function saveAllAndRestart(){
   $('saveMsg').textContent='Uklada sa...';
   var body = 'host='+encodeURIComponent($('host').value)

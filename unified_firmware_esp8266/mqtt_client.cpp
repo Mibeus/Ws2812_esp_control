@@ -109,18 +109,12 @@ static void handleIncomingForSlot(uint8_t slot, JsonDocument &doc) {
 
 static void handleSchemeForSlot(uint8_t slot, JsonDocument &doc) {
   SlotConfig &sl = cfg.slots[slot];
+  if (sl.function != FUNC_WS2812) return; // Domoticz vyber rezimu riesime len pre WS2812
   if (!doc.containsKey("nvalue")) return;
   int level = doc["nvalue"].as<int>();
-
-  if (sl.function == FUNC_WS2812) {
-    uint8_t i = (uint8_t)constrain(level / 10, 0, WS_SCHEME_ORDER_LEN - 1);
-    sl.scheme = WS_SCHEME_ORDER[i];
-    configSave();
-  } else if (sl.function == FUNC_PWM) {
-    uint8_t i = (uint8_t)constrain(level / 10, 0, PWM_SCHEME_COUNT - 1);
-    sl.scheme = i;
-    configSave();
-  }
+  uint8_t i = (uint8_t)constrain(level / 10, 0, WS_SCHEME_ORDER_LEN - 1);
+  sl.scheme = WS_SCHEME_ORDER[i];
+  configSave();
 }
 
 static void onMqttMessage(char* topic, byte* payload, unsigned int len) {
@@ -215,16 +209,10 @@ void mqttPublishSlot(uint8_t slot) {
 void mqttPublishSlotScheme(uint8_t slot) {
   if (!mqtt.connected() || slot >= NUM_SLOTS) return;
   SlotConfig &sl = cfg.slots[slot];
-  if (sl.domoticzSchemeIdx == 0) return;
+  if (sl.function != FUNC_WS2812 || sl.domoticzSchemeIdx == 0) return;
 
   uint8_t i = 0;
-  if (sl.function == FUNC_WS2812) {
-    for (uint8_t k = 0; k < WS_SCHEME_ORDER_LEN; k++) if (WS_SCHEME_ORDER[k] == sl.scheme) { i = k; break; }
-  } else if (sl.function == FUNC_PWM) {
-    i = sl.scheme;
-  } else {
-    return;
-  }
+  for (uint8_t k = 0; k < WS_SCHEME_ORDER_LEN; k++) if (WS_SCHEME_ORDER[k] == sl.scheme) { i = k; break; }
 
   StaticJsonDocument<128> doc;
   doc["idx"] = sl.domoticzSchemeIdx;
