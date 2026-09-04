@@ -107,8 +107,8 @@ static bool bootStableMarked = false;
 
 void loop() {
   pinsUpdate();
-  mqttLoop();
   webServerLoop();
+  mqttLoop();
   wifiCheckHealth();
   checkSystemHealth();
 

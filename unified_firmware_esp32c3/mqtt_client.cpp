@@ -181,6 +181,9 @@ void mqttBegin() {
   mqtt.setBufferSize(1024);
   mqtt.setServer(cfg.mqttHost, cfg.mqttPort);
   mqtt.setCallback(onMqttMessage);
+  // Predvoleny socket timeout PubSubClient je 15s - ak je broker nedostupny/pomaly,
+  // na tuto dobu by sa zablokoval cely loop() vratane webservera. Skratime na 2s.
+  mqtt.setSocketTimeout(2);
 }
 
 static bool mqttConnect() {
