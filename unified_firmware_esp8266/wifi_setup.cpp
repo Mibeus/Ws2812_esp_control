@@ -26,6 +26,7 @@ void wifiSetupBegin() {
     delay(3000);
     ESP.restart();
   }
+  WiFi.setSleepMode(WIFI_NONE_SLEEP); // vypnutie WiFi power-save modu (ESP8266 API) - inak prichadzajuce MQTT spravy meskaju 1-3s
 }
 
 void wifiStartConfigPortal() {
