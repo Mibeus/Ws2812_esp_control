@@ -563,11 +563,14 @@ static void handleUpdateUpload() {
   HTTPUpload &upload = server.upload();
   if (upload.status == UPLOAD_FILE_START) {
     otaPinOk = (server.arg("pin") == String(cfg.otaPin));
+    Serial.printf("[OTA] start uploadu, pin %s\n", otaPinOk ? "spravny" : "nespravny");
     if (otaPinOk) Update.begin(ESP.getFreeSketchSpace()); // ESP8266 nema UPDATE_SIZE_UNKNOWN, treba explicitnu velkost
   } else if (upload.status == UPLOAD_FILE_WRITE) {
     if (otaPinOk) Update.write(upload.buf, upload.currentSize);
+    yield(); // zabrani watchdog resetu pocas dlheho nahravania (najma pri slabsom WiFi signale)
   } else if (upload.status == UPLOAD_FILE_END) {
     if (otaPinOk) Update.end(true);
+    Serial.printf("[OTA] koniec uploadu, celkovo %u B\n", upload.totalSize);
   }
 }
 
