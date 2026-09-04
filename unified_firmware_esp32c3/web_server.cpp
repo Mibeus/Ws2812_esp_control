@@ -193,6 +193,13 @@ static void handleRoot() {
   String s = pageOpen(String(cfg.deviceName) + " // Ovladaci panel");
   s.reserve(s.length() + 7000);
   s += "<h1>&#9670; " + String(cfg.deviceName) + "</h1><div class='subtitle'>Ovladaci panel</div>";
+
+  if (pinsIsSafeMode()) {
+    s += "<div class='panel' style='border-color:#ff4d4d'><p class='hint' style='color:#ff9d9d'>";
+    s += "&#9888; SAFE MODE: zariadenie opakovane zlyhalo hned po starte, piny su docasne vypnute. ";
+    s += "Choď do Nastaveni, over/oprav konfiguraciu pinov a ulož + restartuj.</p></div>";
+  }
+
   s += "<div class='status-line'><span><span class='dot ";
   s += (mqttIsConnected() ? "on" : "off");
   s += "'></span>MQTT: <b>" + String(mqttIsConnected() ? "pripojene" : "-") + "</b></span>";

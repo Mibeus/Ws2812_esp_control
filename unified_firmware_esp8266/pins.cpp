@@ -34,7 +34,16 @@ static void statusLedUpdateSlot(uint8_t slot) {
   }
 }
 
+static bool safeModeEnabled = false;
+
+void pinsSetSafeMode(bool enabled) {
+  safeModeEnabled = enabled;
+  if (enabled) Serial.println("[PINS] SAFE MODE aktivny - piny sa nebudu inicializovat ani ovladat");
+}
+bool pinsIsSafeMode() { return safeModeEnabled; }
+
 void pinsBegin() {
+  if (safeModeEnabled) return;
   for (uint8_t i = 0; i < NUM_SLOTS; i++) {
     SlotConfig &sl = cfg.slots[i];
     Serial.printf("[PINS] slot %u: GPIO%u, funkcia=%u - zaciatok inicializacie\n", i, sl.gpio, sl.function);
@@ -58,6 +67,7 @@ void pinsBegin() {
 }
 
 void pinsUpdate() {
+  if (safeModeEnabled) return;
   for (uint8_t i = 0; i < NUM_SLOTS; i++) {
     switch (cfg.slots[i].function) {
       case FUNC_PWM:        pwmUpdateSlot(i);        break;

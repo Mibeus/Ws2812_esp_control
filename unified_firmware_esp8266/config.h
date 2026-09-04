@@ -41,6 +41,8 @@ struct Config {
 
   char otaPin[16] = "1234";
 
+  uint8_t bootFailCount = 0; // pocitadlo za sebou iducich restartov hned po starte (ochrana pred boot-loop)
+
   SlotConfig slots[NUM_SLOTS];
 };
 

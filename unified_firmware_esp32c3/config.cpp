@@ -26,6 +26,8 @@ void configLoad() {
   s = prefs.getString("otaPin", "1234");
   s.toCharArray(cfg.otaPin, sizeof(cfg.otaPin));
 
+  cfg.bootFailCount = prefs.getUChar("bootFail", 0);
+
   for (int i = 0; i < NUM_SLOTS; i++) {
     char key[16];
     SlotConfig &sl = cfg.slots[i];
@@ -53,6 +55,8 @@ void configSave() {
   prefs.putString("mqttPass", cfg.mqttPass);
 
   prefs.putString("otaPin", cfg.otaPin);
+
+  prefs.putUChar("bootFail", cfg.bootFailCount);
 
   for (int i = 0; i < NUM_SLOTS; i++) {
     char key[16];

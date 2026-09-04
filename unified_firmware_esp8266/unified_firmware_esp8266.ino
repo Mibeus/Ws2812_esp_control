@@ -68,8 +68,20 @@ void setup() {
   configBegin();
   Serial.println("[BOOT] config nacitany");
 
-  pinsBegin();
-  Serial.println("[BOOT] piny inicializovane");
+  // Ochrana pred boot-loop: ak zariadenie zlyhalo hned po starte 3x po sebe
+  // (typicky zla konfiguracia pinu, ktora pada este pred rozbehnutim webservera),
+  // na tento pokus preskocime inicializaciu pinov, aby sa dalo dostat do /settings
+  // a chybnu konfiguraciu opravit. WiFi/MQTT/webserver bezia normalne aj v SAFE MODE.
+  cfg.bootFailCount++;
+  configSave();
+  bool safeMode = (cfg.bootFailCount >= 3);
+  if (safeMode) {
+    Serial.println("[BOOT] SAFE MODE - opakovane zlyhanie startu, piny su docasne vypnute");
+    pinsSetSafeMode(true);
+  } else {
+    pinsBegin();
+    Serial.println("[BOOT] piny inicializovane");
+  }
 
   wifiSetupBegin();
   Serial.println("[BOOT] WiFi pripojene");
@@ -91,6 +103,8 @@ void setup() {
   Serial.println("Web rozhranie dostupne aj na http://" + mdnsHost + ".local");
 }
 
+static bool bootStableMarked = false;
+
 void loop() {
   pinsUpdate();
   mqttLoop();
@@ -98,4 +112,12 @@ void loop() {
   wifiCheckHealth();
   checkSystemHealth();
   MDNS.update();
+
+  // Po 15s bezproblemoveho behu povazujeme start za uspesny a vynulujeme pocitadlo
+  if (!bootStableMarked && millis() > 15000) {
+    bootStableMarked = true;
+    cfg.bootFailCount = 0;
+    configSave();
+    Serial.println("[BOOT] beh stabilny 15s, pocitadlo zlyhani vynulovane");
+  }
 }
