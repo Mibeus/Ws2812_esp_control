@@ -37,6 +37,7 @@ static void statusLedUpdateSlot(uint8_t slot) {
 void pinsBegin() {
   for (uint8_t i = 0; i < NUM_SLOTS; i++) {
     SlotConfig &sl = cfg.slots[i];
+    Serial.printf("[PINS] slot %u: GPIO%u, funkcia=%u - zaciatok inicializacie\n", i, sl.gpio, sl.function);
     switch (sl.function) {
       case FUNC_PWM:
         pwmBeginSlot(i);
@@ -52,6 +53,7 @@ void pinsBegin() {
       default:
         break; // FUNC_NONE
     }
+    Serial.printf("[PINS] slot %u: inicializacia dokoncena\n", i);
   }
 }
 

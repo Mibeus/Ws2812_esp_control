@@ -62,19 +62,29 @@ static void checkSystemHealth() {
 
 void setup() {
   Serial.begin(115200);
+  delay(200);
+  Serial.println("\n[BOOT] Serial start");
 
   configBegin();
+  Serial.println("[BOOT] config nacitany");
+
   pinsBegin();
+  Serial.println("[BOOT] piny inicializovane");
 
   wifiSetupBegin();
+  Serial.println("[BOOT] WiFi pripojene");
 
   String mdnsHost = slugify(cfg.deviceName);
   if (MDNS.begin(mdnsHost.c_str())) {
     MDNS.addService("http", "tcp", 80);
   }
+  Serial.println("[BOOT] mDNS spustene");
 
   mqttBegin();
+  Serial.println("[BOOT] MQTT inicializovane");
+
   webServerBegin();
+  Serial.println("[BOOT] webserver spusteny");
 
   Serial.print("Pripojene. IP adresa: ");
   Serial.println(wifiGetIp());
