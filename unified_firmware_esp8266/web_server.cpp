@@ -511,6 +511,13 @@ static void handleDebug() {
     s += "</div>";
   }
   s += "<p class='hint'>Volna pamat: " + String(ESP.getFreeHeap()) + " B, beh: " + String(millis() / 1000) + " s</p>";
+
+  s += "<div class='panel'><label class='field' style='margin-top:0;color:var(--accent)'>MQTT log</label>";
+  s += "<p class='hint'>MQTT: <b>" + String(mqttIsConnected() ? "pripojene" : "nepripojene") + "</b></p>";
+  s += "<p class='hint'>" + mqttDebugLog() + "</p>";
+  s += "<p class='hint'>Obnov stranku (F5) po vyskusani ovladania z Domoticz, nech uvidis najnovsie udalosti.</p>";
+  s += "</div>";
+
   s += "<a class='navlink' href='/'>&#8592; Spat</a>";
   s += PAGE_CLOSE;
   server.send(200, "text/html", s);

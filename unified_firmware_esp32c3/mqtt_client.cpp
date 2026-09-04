@@ -6,6 +6,7 @@
 #include <WiFi.h>
 #include <PubSubClient.h>
 #include <ArduinoJson.h>
+#include <ctype.h>
 
 // Domoticz MQTT protokol - lisi sa podla funkcie slotu:
 //  - FUNC_ONOFF (plain Switch):     {"idx":X,"nvalue":0/1}
@@ -18,6 +19,39 @@
 static WiFiClient wifiClient;
 static PubSubClient mqtt(wifiClient);
 static uint32_t lastReconnectAttempt = 0;
+
+// Maly webovy log poslednych MQTT udalosti - dostupny cez /debug, nahradza Serial monitor
+#define MQTT_LOG_SIZE 6
+static String mqttLog[MQTT_LOG_SIZE];
+static uint8_t mqttLogPos = 0;
+
+static void logMqtt(const String &line) {
+  mqttLog[mqttLogPos] = String(millis() / 1000) + "s: " + line;
+  mqttLogPos = (mqttLogPos + 1) % MQTT_LOG_SIZE;
+  Serial.println("[MQTT] " + line);
+}
+
+String mqttDebugLog() {
+  String out;
+  for (uint8_t i = 0; i < MQTT_LOG_SIZE; i++) {
+    uint8_t idx = (mqttLogPos + i) % MQTT_LOG_SIZE;
+    if (mqttLog[idx].length() > 0) out += mqttLog[idx] + "<br>";
+  }
+  if (out.length() == 0) out = "(zatial ziadna udalost)";
+  return out;
+}
+
+// MQTT client ID nesmie obsahovat medzery ani specialne znaky - niektore
+// brokery sa s takym clientId vedia spravat nepredvidatelne.
+static String sanitizeClientId(const String &name) {
+  String out;
+  for (size_t i = 0; i < name.length(); i++) {
+    char c = name[i];
+    if (isalnum((unsigned char)c) || c == '-' || c == '_') out += c;
+  }
+  if (out.length() == 0) out = "device";
+  return out;
+}
 
 static void rgbToHueSat(uint8_t r, uint8_t g, uint8_t b, uint8_t &hueOut, uint8_t &satOut) {
   float rf = r / 255.0f, gf = g / 255.0f, bf = b / 255.0f;
@@ -118,26 +152,28 @@ static void handleSchemeForSlot(uint8_t slot, JsonDocument &doc) {
 }
 
 static void onMqttMessage(char* topic, byte* payload, unsigned int len) {
-  Serial.printf("[MQTT] prijata sprava na '%s' (%u B)\n", topic, len);
+  String payloadStr;
+  for (unsigned int i = 0; i < len && i < 150; i++) payloadStr += (char)payload[i];
+  logMqtt("RX " + String(topic) + " (" + String(len) + "B): " + payloadStr);
 
   StaticJsonDocument<768> doc;
-  if (deserializeJson(doc, payload, len)) return;
-  if (!doc.containsKey("idx")) return;
+  if (deserializeJson(doc, payload, len)) { logMqtt("chyba parsovania JSON"); return; }
+  if (!doc.containsKey("idx")) { logMqtt("sprava bez 'idx', ignorujem"); return; }
   int msgIdx = doc["idx"].as<int>();
 
   for (uint8_t i = 0; i < NUM_SLOTS; i++) {
     if (cfg.slots[i].domoticzIdx != 0 && cfg.slots[i].domoticzIdx == msgIdx) {
-      Serial.printf("[MQTT] zhoda idx %d -> slot %u (hlavne zariadenie)\n", msgIdx, i);
+      logMqtt("zhoda idx " + String(msgIdx) + " -> slot " + String(i) + " (hlavne zariadenie)");
       handleIncomingForSlot(i, doc);
       return;
     }
     if (cfg.slots[i].domoticzSchemeIdx != 0 && cfg.slots[i].domoticzSchemeIdx == msgIdx) {
-      Serial.printf("[MQTT] zhoda idx %d -> slot %u (selector rezimu)\n", msgIdx, i);
+      logMqtt("zhoda idx " + String(msgIdx) + " -> slot " + String(i) + " (selector rezimu)");
       handleSchemeForSlot(i, doc);
       return;
     }
   }
-  Serial.printf("[MQTT] idx %d nesedi so ziadnym slotom, ignorujem\n", msgIdx);
+  logMqtt("idx " + String(msgIdx) + " nesedi so ziadnym nastavenym slotom");
 }
 
 void mqttBegin() {
@@ -148,15 +184,15 @@ void mqttBegin() {
 }
 
 static bool mqttConnect() {
-  String clientId = String(cfg.deviceName) + "-" + WiFi.macAddress();
+  String clientId = sanitizeClientId(cfg.deviceName) + "-" + WiFi.macAddress();
   bool ok = strlen(cfg.mqttUser) > 0
               ? mqtt.connect(clientId.c_str(), cfg.mqttUser, cfg.mqttPass)
               : mqtt.connect(clientId.c_str());
   if (ok) {
-    mqtt.subscribe("domoticz/out");
-    Serial.println("[MQTT] pripojene, odoberam 'domoticz/out'");
+    bool subOk = mqtt.subscribe("domoticz/out");
+    logMqtt("pripojene (id=" + clientId + "), subscribe domoticz/out: " + (subOk ? "OK" : "ZLYHALO"));
   } else {
-    Serial.printf("[MQTT] pripojenie zlyhalo, rc=%d\n", mqtt.state());
+    logMqtt("pripojenie zlyhalo, rc=" + String(mqtt.state()));
   }
   return ok;
 }
