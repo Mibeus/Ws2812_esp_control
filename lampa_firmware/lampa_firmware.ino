@@ -27,6 +27,7 @@
 #include "mqtt_client.h"
 #include "web_server.h"
 #include <ESPmDNS.h>
+#include <WiFi.h>
 
 #define PIN_TOUCH 5
 
@@ -113,7 +114,12 @@ void setup() {
   buttonBegin(PIN_TOUCH);
   buttonSetCallbacks(onSingleClick, onDoubleClick, onTripleClick, onHold, onHoldEnd);
 
+  // Vypnut WiFi power-save: modem inak spi a odpovede (web, dotyk->MQTT) su pomale / vypadavaju
+  WiFi.setSleep(false);
+  WiFi.setAutoReconnect(true);
+
   wifiSetupBegin();  // prve zapnutie: AP + portal; inak sa pripoji na ulozenu siet
+  WiFi.setSleep(false);
 
   String mdnsHost = slugify(cfg.deviceName);
   if (MDNS.begin(mdnsHost.c_str())) {
@@ -130,9 +136,9 @@ void setup() {
 
 void loop() {
   buttonUpdate();
-  ledUpdate();
+  webServerLoop();   // web pred MQTT, aby ho blokujuci MQTT nezasekol
   mqttLoop();
-  webServerLoop();
+  ledUpdate();
   wifiCheckHealth();
   checkSystemHealth();
 }

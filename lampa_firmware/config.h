@@ -1,6 +1,9 @@
 #pragma once
 #include <Arduino.h>
 
+#define FW_VERSION "1.1.0"
+#define FW_NAME "Lampa ESP32-C3"
+
 // Vsetky perzistentne nastavenia lampy (ulozene v NVS cez Preferences / EEPROM)
 struct Config {
   // Pomenovanie zariadenia (nadpis na strankach, zaklad pre .local adresu a nazov AP hotspotu)

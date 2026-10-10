@@ -162,6 +162,11 @@ static void renderRainbow() {
 }
 
 void ledUpdate() {
+  // Obmedzenie prekreslovania na ~50 fps - zbytocne casty show() zatazuje CPU/WiFi.
+  static uint32_t lastRender = 0;
+  if (millis() - lastRender < 20) return;
+  lastRender = millis();
+
   if (fadingOut) {
     uint32_t elapsed = millis() - fadeOutStartMs;
     if (elapsed >= WAKEUP_FADE_MS) {

@@ -138,12 +138,15 @@ void mqttBegin() {
   // Domoticz Color Switch JSON spravy byvaju velke (Color objekt + vela metadat) -
   // predvoleny PubSubClient limit 256 B by ich potichu zahadzoval.
   mqtt.setBufferSize(1024);
+  mqtt.setSocketTimeout(2);   // predvolenych 15 s blokovalo cely loop (dotyk, web)
+  mqtt.setKeepAlive(30);
   mqtt.setServer(cfg.mqttHost, cfg.mqttPort);
   mqtt.setCallback(onMqttMessage);
 }
 
 static bool mqttConnect() {
   String clientId = "lampa-" + WiFi.macAddress();
+  clientId.replace(":", "");
   bool ok = strlen(cfg.mqttUser) > 0
               ? mqtt.connect(clientId.c_str(), cfg.mqttUser, cfg.mqttPass)
               : mqtt.connect(clientId.c_str());
@@ -160,6 +163,7 @@ void mqttLoop() {
   if (strlen(cfg.mqttHost) == 0) return;
 
   if (!mqtt.connected()) {
+    if (WiFi.status() != WL_CONNECTED) return;   // bez WiFi nema zmysel blokovat pokusom o pripojenie
     uint32_t now = millis();
     if (now - lastReconnectAttempt > 5000) {
       lastReconnectAttempt = now;
@@ -170,6 +174,7 @@ void mqttLoop() {
   }
 }
 
+int mqttLastState() { return mqtt.state(); }
 bool mqttIsConnected() { return mqtt.connected(); }
 
 void mqttPublishState(bool on) {

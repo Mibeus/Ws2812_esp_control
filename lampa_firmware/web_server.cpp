@@ -5,6 +5,8 @@
 #include "wifi_setup.h"
 #include <WebServer.h>
 #include <Update.h>
+#include <WiFi.h>
+#include <esp_system.h>
 
 static WebServer server(80);
 
@@ -222,10 +224,90 @@ static void handleRestart() {
 // sa uklada jednym tlacidlom naraz. Zmena WiFi je samostatna akcia (nie
 // ukladanie hodnoty, ale prepnutie do config rezimu), preto ma vlastne tlacidlo.
 // ---------------------------------------------------------------------
+// ---------------------------------------------------------------------
+// Info o zariadeni (RSSI, verzia FW, cip...) - JSON pre /info + panel v nastaveniach
+// ---------------------------------------------------------------------
+static const char* rssiQuality(int rssi) {
+  if (rssi >= -55) return "vyborny";
+  if (rssi >= -67) return "dobry";
+  if (rssi >= -75) return "slaby";
+  if (rssi >= -85) return "velmi slaby";
+  return "kriticky";
+}
+
+static String uptimeStr() {
+  uint32_t t = millis() / 1000;
+  char b[32];
+  snprintf(b, sizeof(b), "%ud %02uh %02um", (unsigned)(t / 86400), (unsigned)((t / 3600) % 24), (unsigned)((t / 60) % 60));
+  return String(b);
+}
+
+static void handleInfoJson() {
+  int rssi = WiFi.RSSI();
+  String j;
+  j.reserve(520);
+  j += "{\"rssi\":" + String(rssi);
+  j += ",\"quality\":\"" + String(rssiQuality(rssi)) + "\"";
+  j += ",\"ssid\":\"" + WiFi.SSID() + "\"";
+  j += ",\"ip\":\"" + WiFi.localIP().toString() + "\"";
+  j += ",\"heap\":" + String(ESP.getFreeHeap());
+  j += ",\"uptime\":\"" + uptimeStr() + "\"";
+  j += ",\"mqtt\":\"" + String(strlen(cfg.mqttHost) == 0 ? "vypnute" : (mqttIsConnected() ? "pripojene" : "nepripojene (rc=" + String(mqttLastState()) + ")")) + "\"";
+  j += "}";
+  server.send(200, "application/json", j);
+}
+
+static String resetReasonStr() {
+  switch (esp_reset_reason()) {
+    case ESP_RST_POWERON:   return "zapnutie napajania";
+    case ESP_RST_SW:        return "softverovy restart";
+    case ESP_RST_PANIC:     return "pad programu (panic)";
+    case ESP_RST_INT_WDT:   return "watchdog (prerusenia)";
+    case ESP_RST_TASK_WDT:  return "watchdog (uloha)";
+    case ESP_RST_WDT:       return "watchdog";
+    case ESP_RST_BROWNOUT:  return "podpatie napajania (brownout)";
+    case ESP_RST_DEEPSLEEP: return "deep sleep";
+    default:                return "ine (" + String((int)esp_reset_reason()) + ")";
+  }
+}
+
+static String infoRow(const char* k, const String &v, const char* id = nullptr) {
+  String r = "<div style='display:flex;justify-content:space-between;gap:10px;padding:5px 0;border-bottom:1px solid var(--panel-border);font-size:13px'>";
+  r += "<span style='color:var(--text-dim)'>" + String(k) + "</span><span";
+  if (id) r += " id='" + String(id) + "'";
+  r += " style='text-align:right;word-break:break-all'>" + v + "</span></div>";
+  return r;
+}
+
+static String buildInfoPanel() {
+  int rssi = WiFi.RSSI();
+  String s;
+  s.reserve(1800);
+  s += "<div class='panel'><label class='field' style='margin-top:0;color:var(--accent)'>Info o zariadeni</label>";
+  s += infoRow("Firmware", String(FW_NAME) + " v" + FW_VERSION);
+  s += infoRow("Zostavene", String(__DATE__) + " " + __TIME__);
+  s += infoRow("Cip", String(ESP.getChipModel()) + " rev " + String(ESP.getChipRevision()) + ", " + String(ESP.getChipCores()) + " jadro, " + String(ESP.getCpuFreqMHz()) + " MHz");
+  s += infoRow("Flash", String(ESP.getFlashChipSize() / 1024) + " kB (sketch " + String(ESP.getSketchSize() / 1024) + " kB)");
+  s += infoRow("Arduino core / IDF", String(ESP_ARDUINO_VERSION_MAJOR) + "." + ESP_ARDUINO_VERSION_MINOR + "." + ESP_ARDUINO_VERSION_PATCH + " / " + ESP.getSdkVersion());
+  s += infoRow("Dovod posl. restartu", resetReasonStr());
+  s += infoRow("MAC", WiFi.macAddress());
+  s += infoRow("WiFi siet", WiFi.SSID(), "iSsid");
+  s += infoRow("Sila signalu", String(rssi) + " dBm (" + rssiQuality(rssi) + ")", "iRssi");
+  s += infoRow("IP adresa", WiFi.localIP().toString(), "iIp");
+  s += infoRow("Volna pamat", String(ESP.getFreeHeap()) + " B", "iHeap");
+  s += infoRow("MQTT", strlen(cfg.mqttHost) == 0 ? String("vypnute") : (mqttIsConnected() ? String("pripojene") : String("nepripojene (rc=") + mqttLastState() + ")"), "iMqtt");
+  s += infoRow("Beh", uptimeStr(), "iUp");
+  s += "<p class='hint'>Sila signalu: lepsie nez -67 dBm je dobre; horsie nez -75 dBm sposobuje vypadky a pomale nacitanie stranky.</p>";
+  s += "</div>";
+  return s;
+}
+
 static void handleSettingsPage() {
   String s = pageOpen("Nastavenia");
   s.reserve(s.length() + 3800);
   s += "<h1>&#9881; Nastavenia</h1><div class='subtitle'>" + String(cfg.deviceName) + "</div>";
+
+  s += buildInfoPanel();
 
   s += "<div class='panel'><label class='field' style='margin-top:0;color:var(--accent)'>MQTT</label>";
   s += "<label class='field'>Broker (IP alebo hostname)</label><input id='host' value='" + String(cfg.mqttHost) + "'>";
@@ -262,6 +344,14 @@ static void handleSettingsPage() {
 
   s += R"JS(<script>
 const $ = id => document.getElementById(id);
+function refreshInfo(){
+  fetch('/info').then(function(r){return r.json();}).then(function(d){
+    $('iRssi').textContent=d.rssi+' dBm ('+d.quality+')';
+    $('iSsid').textContent=d.ssid; $('iIp').textContent=d.ip;
+    $('iHeap').textContent=d.heap+' B'; $('iMqtt').textContent=d.mqtt; $('iUp').textContent=d.uptime;
+  }).catch(function(){});
+}
+setInterval(refreshInfo,5000);
 function saveAllAndRestart(){
   $('saveMsg').textContent='Uklada sa...';
   var body = 'host='+encodeURIComponent($('host').value)
@@ -352,6 +442,7 @@ static void handleUpdateUpload() {
     if (otaPinOk) Update.begin(UPDATE_SIZE_UNKNOWN);
   } else if (upload.status == UPLOAD_FILE_WRITE) {
     if (otaPinOk) Update.write(upload.buf, upload.currentSize);
+    yield();
   } else if (upload.status == UPLOAD_FILE_END) {
     if (otaPinOk) Update.end(true);
   }
@@ -364,6 +455,7 @@ void webServerBegin() {
   server.on("/restart", HTTP_POST, handleRestart);
   server.on("/mqtt", HTTP_GET, handleSettingsPage); // stary odkaz presmerovany na novu stranku
   server.on("/settings", HTTP_GET, handleSettingsPage);
+  server.on("/info", HTTP_GET, handleInfoJson);
   server.on("/settingssave", HTTP_POST, handleSettingsSave);
   server.on("/wifi-reset", HTTP_POST, handleWifiReset);
   server.on("/update", HTTP_GET, handleUpdatePage);
