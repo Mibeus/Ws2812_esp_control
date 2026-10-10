@@ -28,6 +28,7 @@
 #include "mqtt_client.h"
 #include "web_server.h"
 #include <ESP8266mDNS.h>
+#include <ESP8266WiFi.h>
 
 #define PIN_TOUCH 5
 
@@ -114,6 +115,10 @@ void setup() {
   buttonBegin(PIN_TOUCH);
   buttonSetCallbacks(onSingleClick, onDoubleClick, onTripleClick, onHold, onHoldEnd);
 
+  // Vypnut WiFi power-save: modem inak spi a odpovede (web, dotyk->MQTT) su pomale / vypadavaju
+  WiFi.setSleepMode(WIFI_NONE_SLEEP);
+  WiFi.setAutoReconnect(true);
+
   wifiSetupBegin();  // prve zapnutie: AP + portal; inak sa pripoji na ulozenu siet
 
   String mdnsHost = slugify(cfg.deviceName);
@@ -131,9 +136,9 @@ void setup() {
 
 void loop() {
   buttonUpdate();
-  ledUpdate();
+  webServerLoop();   // web pred MQTT, aby ho blokujuci MQTT nezasekol
   mqttLoop();
-  webServerLoop();
+  ledUpdate();
   wifiCheckHealth();
   checkSystemHealth();
   MDNS.update();   // na ESP8266 treba mDNS periodicky obsluhovat (na rozdiel od ESP32)

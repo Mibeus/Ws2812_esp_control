@@ -162,6 +162,12 @@ static void renderRainbow() {
 }
 
 void ledUpdate() {
+  // strip->show() na ESP8266 vypina prerušenia; volane stovky-krat za sekundu
+  // by dusilo WiFi stack (stranka sa neotvori). Obmedzime na ~50 fps.
+  static uint32_t lastRender = 0;
+  if (millis() - lastRender < 20) return;
+  lastRender = millis();
+
   if (fadingOut) {
     uint32_t elapsed = millis() - fadeOutStartMs;
     if (elapsed >= WAKEUP_FADE_MS) {
