@@ -309,23 +309,31 @@ static String buildInfoPanel() {
 // ---------------------------------------------------------------------
 // "/log" - udalostny log (HTML) a "/log.txt" (cisty text na skopirovanie)
 // ---------------------------------------------------------------------
-struct LogCtx { bool txt; bool sepDone; };
+struct LogCtx { bool txt; bool sepDone; String buf; };
+
+// Riadky skladame do vacsich blokov (~1 kB): kazdy sendContent() = osobny TCP segment,
+// stovky malych segmentov by kvoli delayed-ACK stali stranku na sekundy.
+static void logFlush(LogCtx* ctx) {
+  if (ctx->buf.length()) { server.sendContent(ctx->buf); ctx->buf = ""; }
+}
 
 static void logLineSender(const char* line, bool prev, void* c) {
   LogCtx* ctx = (LogCtx*)c;
   if (prev && !ctx->sepDone) {
     ctx->sepDone = true;
-    server.sendContent(ctx->txt ? "---- pred poslednym restartom ----\n" : "<div class='hint' style='margin:10px 0 4px;color:var(--accent2)'>&#8212; pred poslednym restartom &#8212;</div>");
+    ctx->buf += ctx->txt ? "---- pred poslednym restartom ----\n" : "<div class='hint' style='margin:10px 0 4px;color:var(--accent2)'>&#8212; pred poslednym restartom &#8212;</div>";
   }
   if (ctx->txt) {
-    server.sendContent(String(line) + "\n");
+    ctx->buf += line;
+    ctx->buf += "\n";
   } else {
     String esc = line;
     esc.replace("&", "&amp;");
     esc.replace("<", "&lt;");
     esc.replace(">", "&gt;");
-    server.sendContent("<div style='font-size:12px;padding:2px 0;border-bottom:1px solid var(--panel-border);word-break:break-word'>" + esc + "</div>");
+    ctx->buf += "<div style='font-size:12px;padding:2px 0;border-bottom:1px solid var(--panel-border);word-break:break-word'>" + esc + "</div>";
   }
+  if (ctx->buf.length() > 1000) logFlush(ctx);
 }
 
 static void handleLogPage() {
@@ -335,8 +343,10 @@ static void handleLogPage() {
   server.sendContent("<h1>&#9776; Log udalosti</h1><div class='subtitle'>" + String(cfg.deviceName) + " &middot; boot #" + String(logBootCount()) + " &middot; " + logResetReason() + "</div>");
   server.sendContent("<div class='panel'><button class='primary' onclick='location.reload()'>Obnovit</button>"
                      "<a class='navlink' href='/log.txt'>Text (na skopirovanie)</a><div style='margin-top:10px'>");
-  LogCtx ctx = {false, false};
+  LogCtx ctx = {false, false, String()};
+  ctx.buf.reserve(1200);
   logForEach(logLineSender, &ctx);
+  logFlush(&ctx);
   server.sendContent("</div></div><a class='navlink' href='/settings'>&#8592; Nastavenia</a>");
   server.sendContent(PAGE_CLOSE);
   server.sendContent("");
@@ -345,8 +355,10 @@ static void handleLogPage() {
 static void handleLogTxt() {
   server.setContentLength(CONTENT_LENGTH_UNKNOWN);
   server.send(200, "text/plain; charset=utf-8", "");
-  LogCtx ctx = {true, false};
+  LogCtx ctx = {true, false, String()};
+  ctx.buf.reserve(1200);
   logForEach(logLineSender, &ctx);
+  logFlush(&ctx);
   server.sendContent("");
 }
 

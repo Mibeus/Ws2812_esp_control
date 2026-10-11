@@ -1,7 +1,7 @@
 #pragma once
 #include <Arduino.h>
 
-#define FW_VERSION "1.2.1"
+#define FW_VERSION "1.2.2"
 #define FW_NAME "Lampa ESP8266"
 
 // Vsetky perzistentne nastavenia lampy (ulozene v NVS cez Preferences / EEPROM)
