@@ -1,5 +1,6 @@
 #include "wifi_setup.h"
 #include "config.h"
+#include "event_log.h"
 #include <ESP8266WiFi.h>
 #include <WiFiManager.h>   // rovnaka kniznica (tzapu) funguje pre ESP8266 aj ESP32
 
@@ -56,6 +57,7 @@ void wifiCheckHealth() {
   lastWifiCheck = millis();
 
   if (wifiIsConnected()) {
+    if (!wifiWasConnected) logEvent("WiFi: obnovene, rssi %d", (int)WiFi.RSSI());
     wifiWasConnected = true;
     wifiDownSince = 0;
     return;
@@ -65,9 +67,11 @@ void wifiCheckHealth() {
     wifiWasConnected = false;
     wifiDownSince = millis();
     Serial.println("[WiFi] spojenie vypadlo, skusam WiFi.reconnect()...");
+    logEvent("WiFi: spojenie vypadlo");
     WiFi.reconnect();
   } else if (millis() - wifiDownSince > 5UL * 60UL * 1000UL) {
     Serial.println("[WiFi] bez spojenia 5 minut, restartujem zariadenie");
+    logEvent("RESTART: 5 min bez WiFi");
     delay(200);
     ESP.restart();
   }

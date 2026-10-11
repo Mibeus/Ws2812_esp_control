@@ -1,6 +1,7 @@
 #include "mqtt_client.h"
 #include "config.h"
 #include "led_control.h"
+#include "event_log.h"
 #include <ESP8266WiFi.h>
 #include <PubSubClient.h>
 #include <ArduinoJson.h>
@@ -60,6 +61,7 @@ static void hueSatValToRgb(uint8_t hue, uint8_t sat, uint8_t val, uint8_t &r, ui
 
 static void onMqttMessage(char* topic, byte* payload, unsigned int len) {
   Serial.printf("[MQTT] prijata sprava na '%s' (%u B)\n", topic, len);
+  logSetSource("mqtt");
 
   StaticJsonDocument<768> doc;
   DeserializationError err = deserializeJson(doc, payload, len);
@@ -160,8 +162,21 @@ static bool mqttConnect() {
   return ok;
 }
 
+static void mqttTrackState() {
+  static bool prev = false;
+  static bool first = true;
+  bool now = mqtt.connected();
+  if (first || now != prev) {
+    if (now) logEvent("MQTT: pripojene");
+    else if (!first) logEvent("MQTT: odpojene (rc=%d)", mqtt.state());
+    prev = now;
+    first = false;
+  }
+}
+
 void mqttLoop() {
   if (strlen(cfg.mqttHost) == 0) return;
+  mqttTrackState();
 
   if (!mqtt.connected()) {
     if (WiFi.status() != WL_CONNECTED) return;   // bez WiFi nema zmysel blokovat pokusom o pripojenie

@@ -3,6 +3,7 @@
 #include "led_control.h"
 #include "mqtt_client.h"
 #include "wifi_setup.h"
+#include "event_log.h"
 #include <ESP8266WebServer.h>
 #include <Updater.h>
 #include <ESP8266WiFi.h>
@@ -187,6 +188,7 @@ updatePreview();
 
 // live = aplikuje sa ihned do RAM, ziadny zapis do flash (pouziva sa pocas tahania posuvnika)
 static void handleLive() {
+  logSetSource("web");
   if (server.hasArg("bright")) cfg.brightness = (uint8_t)server.arg("bright").toInt();
   if (server.hasArg("sat"))    cfg.saturation = (uint8_t)server.arg("sat").toInt();
   if (server.hasArg("hue"))    cfg.hue        = (uint8_t)server.arg("hue").toInt();
@@ -196,6 +198,7 @@ static void handleLive() {
 
 // set = aplikuje a ULOZI do flash (pouziva sa pri pusteni posuvnika / zmene rezimu / prepnuti napajania)
 static void handleSet() {
+  logSetSource("web");
   if (server.hasArg("power"))    { cfg.power = server.arg("power").toInt() != 0; ledApplyPower(); mqttPublishState(cfg.power); }
   if (server.hasArg("scheme"))   { cfg.scheme = (uint8_t)server.arg("scheme").toInt(); }
   if (server.hasArg("bright"))   cfg.brightness = (uint8_t)server.arg("bright").toInt();
@@ -213,6 +216,7 @@ static void handleSet() {
 }
 
 static void handleRestart() {
+  logEvent("RESTART: z webu");
   server.send(200, "text/plain", "OK");
   delay(300);
   ESP.restart();
@@ -288,6 +292,51 @@ static String buildInfoPanel() {
   return s;
 }
 
+
+// ---------------------------------------------------------------------
+// "/log" - udalostny log (HTML) a "/log.txt" (cisty text na skopirovanie)
+// ---------------------------------------------------------------------
+struct LogCtx { bool txt; bool sepDone; };
+
+static void logLineSender(const char* line, bool prev, void* c) {
+  LogCtx* ctx = (LogCtx*)c;
+  if (prev && !ctx->sepDone) {
+    ctx->sepDone = true;
+    server.sendContent(ctx->txt ? "---- pred poslednym restartom ----\n" : "<div class='hint' style='margin:10px 0 4px;color:var(--accent2)'>&#8212; pred poslednym restartom &#8212;</div>");
+  }
+  if (ctx->txt) {
+    server.sendContent(String(line) + "\n");
+  } else {
+    String esc = line;
+    esc.replace("&", "&amp;");
+    esc.replace("<", "&lt;");
+    esc.replace(">", "&gt;");
+    server.sendContent("<div style='font-size:12px;padding:2px 0;border-bottom:1px solid var(--panel-border);word-break:break-word'>" + esc + "</div>");
+  }
+}
+
+static void handleLogPage() {
+  server.setContentLength(CONTENT_LENGTH_UNKNOWN);
+  server.send(200, "text/html", "");
+  server.sendContent(pageOpen("Log udalosti"));
+  server.sendContent("<h1>&#9776; Log udalosti</h1><div class='subtitle'>" + String(cfg.deviceName) + " &middot; boot #" + String(logBootCount()) + " &middot; " + logResetReason() + "</div>");
+  server.sendContent("<div class='panel'><button class='primary' onclick='location.reload()'>Obnovit</button>"
+                     "<a class='navlink' href='/log.txt'>Text (na skopirovanie)</a><div style='margin-top:10px'>");
+  LogCtx ctx = {false, false};
+  logForEach(logLineSender, &ctx);
+  server.sendContent("</div></div><a class='navlink' href='/settings'>&#8592; Nastavenia</a>");
+  server.sendContent(PAGE_CLOSE);
+  server.sendContent("");
+}
+
+static void handleLogTxt() {
+  server.setContentLength(CONTENT_LENGTH_UNKNOWN);
+  server.send(200, "text/plain; charset=utf-8", "");
+  LogCtx ctx = {true, false};
+  logForEach(logLineSender, &ctx);
+  server.sendContent("");
+}
+
 static void handleSettingsPage() {
   String s = pageOpen("Nastavenia");
   s.reserve(s.length() + 3800);
@@ -326,6 +375,7 @@ static void handleSettingsPage() {
   s += "<button class='primary' onclick='resetWifi()'>Zmenit WiFi siet</button>";
   s += "<p id='wifiMsg' class='hint'></p></div>";
 
+  s += "<a class='navlink' href='/log'>&#9776; Log udalosti</a>";
   s += "<a class='navlink' href='/'>&#8592; Spat</a>";
 
   s += R"JS(<script>
@@ -442,6 +492,8 @@ void webServerBegin() {
   server.on("/mqtt", HTTP_GET, handleSettingsPage); // stary odkaz presmerovany na novu stranku
   server.on("/settings", HTTP_GET, handleSettingsPage);
   server.on("/info", HTTP_GET, handleInfoJson);
+  server.on("/log", HTTP_GET, handleLogPage);
+  server.on("/log.txt", HTTP_GET, handleLogTxt);
   server.on("/settingssave", HTTP_POST, handleSettingsSave);
   server.on("/wifi-reset", HTTP_POST, handleWifiReset);
   server.on("/update", HTTP_GET, handleUpdatePage);

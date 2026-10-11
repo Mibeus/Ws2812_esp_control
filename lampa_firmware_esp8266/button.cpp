@@ -1,4 +1,5 @@
 #include "button.h"
+#include "event_log.h"
 
 // TTP223 modul (momentalny/direct mod - default z vyroby): HIGH pocas dotyku, LOW pustene.
 // Ak mas modul prepojeny do "toggle" modu, treba tuto logiku upravit.
@@ -51,9 +52,11 @@ void buttonUpdate() {
       // ---- zaciatok dotyku ----
       pressStart = millis();
       isHolding = false;
+      logEvent("dotyk: stlaceny");
     } else {
       // ---- koniec dotyku ----
       uint32_t heldFor = millis() - pressStart;
+      logEvent("dotyk: pusteny po %lu ms", (unsigned long)heldFor);
       if (isHolding) {
         holdDirection = -holdDirection; // priste drzanie pojde opacnym smerom
         isHolding = false;

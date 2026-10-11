@@ -27,6 +27,7 @@
 #include "wifi_setup.h"
 #include "mqtt_client.h"
 #include "web_server.h"
+#include "event_log.h"
 #include <ESP8266mDNS.h>
 #include <ESP8266WiFi.h>
 
@@ -50,6 +51,8 @@ static String slugify(const String &name) {
 }
 
 static void onSingleClick() {
+  logSetSource("dotyk");
+  logEvent("dotyk: 1x klik");
   cfg.power = !cfg.power;
   configSave();
   ledApplyPower();
@@ -57,11 +60,14 @@ static void onSingleClick() {
 }
 
 static void onDoubleClick() {
+  logSetSource("dotyk");
+  logEvent("dotyk: 2x klik");
   ledNextScheme();
   mqttPublishScheme();
 }
 
 static void onTripleClick() {
+  logEvent("dotyk: 3x klik -> WiFi portal");
   // Musime uvolnit port 80, WiFiManager si na nom spusti vlastny config webserver.
   webServerStop();
   wifiStartConfigPortal();   // blokuje, kym sa uzivatel nepripoji / neuplynie timeout
@@ -69,6 +75,7 @@ static void onTripleClick() {
 }
 
 static void onHold(int8_t direction) {
+  logSetSource("dotyk");
   ledAdjustBrightness(direction * 5);
 }
 
@@ -96,6 +103,7 @@ static void checkSystemHealth() {
     Serial.printf("[Health] pod kritickou hranicou (%u/%u kontrol po sebe)\n", lowHeapStreak, LOW_HEAP_STREAK_LIMIT);
     if (lowHeapStreak >= LOW_HEAP_STREAK_LIMIT) {
       Serial.println("[Health] dlhodobo kriticky malo pamate, restartujem zariadenie");
+      logEvent("RESTART: malo pamate (%u B)", (unsigned)freeHeap);
       delay(200);
       ESP.restart();
     }
@@ -108,6 +116,9 @@ void setup() {
   Serial.begin(115200);
 
   configBegin();
+  logBegin();   // hned po nacitani konfiguracie
+
+  
 
   ledBegin();
   ledApplyPower();
@@ -134,12 +145,24 @@ void setup() {
   Serial.println("Web rozhranie dostupne aj na http://" + mdnsHost + ".local");
 }
 
+// Meranie dlzky jednotlivych casti loop(): ak niektora trva > 250 ms, zapise sa do logu.
+#define TIMED(name, call) { uint32_t _s = millis(); call; uint32_t _d = millis() - _s; \
+  if (_d > 250) logEvent("POMALE: %s %lu ms", name, (unsigned long)_d); }
+
 void loop() {
-  buttonUpdate();
-  webServerLoop();   // web pred MQTT, aby ho blokujuci MQTT nezasekol
-  mqttLoop();
-  ledUpdate();
-  wifiCheckHealth();
+  static uint32_t lastLoop = 0;
+  uint32_t nowMs = millis();
+  if (lastLoop != 0 && nowMs - lastLoop > 500) logEvent("loop pauza %lu ms", (unsigned long)(nowMs - lastLoop));
+  lastLoop = nowMs;
+
+  TIMED("dotyk", buttonUpdate());
+  TIMED("web", webServerLoop());   // web pred MQTT, aby ho blokujuci MQTT nezasekol
+  TIMED("mqtt", mqttLoop());
+  TIMED("led", ledUpdate());
+  TIMED("wifi", wifiCheckHealth());
   checkSystemHealth();
+  logWatchConfig();
+  logHeartbeat();
   MDNS.update();   // na ESP8266 treba mDNS periodicky obsluhovat (na rozdiel od ESP32)
+  lastLoop = millis();
 }
