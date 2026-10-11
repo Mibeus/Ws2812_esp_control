@@ -1,6 +1,7 @@
 #include "wifi_setup.h"
 #include "config.h"
 #include "event_log.h"
+#include "mqtt_client.h"
 #include <ESP8266WiFi.h>
 #include <WiFiManager.h>   // rovnaka kniznica (tzapu) funguje pre ESP8266 aj ESP32
 
@@ -60,6 +61,31 @@ void wifiCheckHealth() {
     if (!wifiWasConnected) logEvent("WiFi: obnovene, rssi %d", (int)WiFi.RSSI());
     wifiWasConnected = true;
     wifiDownSince = 0;
+
+    // Sietovy watchdog: WiFi.status() moze hlasit "pripojene", hoci IP stack uz neodpoveda
+    // (web zamrzne, MQTT sa neobnovi, no dotyk stale funguje). MQTT sluzi ako "heartbeat" siete.
+    if (strlen(cfg.mqttHost) > 0) {
+      static uint32_t mqttDownSince = 0;
+      static bool everConnected = false;
+      static bool reconnected = false;
+      if (mqttIsConnected()) {
+        mqttDownSince = 0;
+        reconnected = false;
+        everConnected = true;
+      } else {
+        if (mqttDownSince == 0) mqttDownSince = millis();
+        uint32_t down = millis() - mqttDownSince;
+        if (everConnected && down > 6UL * 60UL * 1000UL) {
+          logEvent("RESTART: MQTT 6 min dole, siet neodpoveda (rssi %d)", (int)WiFi.RSSI());
+          delay(200);
+          ESP.restart();
+        } else if (down > 2UL * 60UL * 1000UL && !reconnected) {
+          reconnected = true;
+          logEvent("siet: MQTT 2 min dole -> WiFi reconnect (rssi %d)", (int)WiFi.RSSI());
+          WiFi.reconnect();
+        }
+      }
+    }
     return;
   }
 
